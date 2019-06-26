@@ -1,0 +1,92 @@
+\part{Read Write Filesystem }
+\chapter{Dokumentation}
+\section{Aufbau}
+\subsection{myfs}
+Um die neue Funktionalität des Filesystem nutzen zu können, werden neue Fuse Methoden benötigt. 
+
+\begin{description}[align=right,labelwidth=1.5cm]
+	\item[\textbf{fuseWrite()}] Wird aufgerufen wenn eine Datei z. B. gelöscht werden soll.
+\end{description} 
+\newpage
+
+\section{Testfälle}
+Damit auch hier die Funktionalität von MyFS garantiert werden kann werden sich verschiedenen Tests bedient. Darunter fallen das Löschen, Schreiben und Verändern von Daten.
+
+Im folgenden wird ein Bash - Testscript aufgeführt das diese Grundfunktionalität überprüft. Es wird eine Datei in dem Filesystem angelegt. Ebenso wird das Verändern des Inhaltes getestet. Dabei wird der Inhalt dieser Datei neu geschrieben sowie ergänzt. Schließlich wird sie gelöscht. 
+
+Um dies zu starten muss in die Kommandozeile \textit{bash readDifferentFormats.sh datei} eingegeben werden. Das Bash Script kümmert sich um die Restliche Ausführung des Filesystem. Um mehrere Dateien zu überprüfen werden anderen Testmechanismen angewendet. 
+\begin{lstlisting}
+#!/bin/bash
+
+parameter=$1
+
+echo "$(tput setaf 2)"
+echo "---------------------------------"
+echo "Test Script startet"
+echo "---------------------------------"
+
+echo "$(tput setaf 4)"
+echo "> Es wird folgende Datei getestet: $parameter"
+echo "> Das Filesystem wird vorbereitet und mit der Datei beschrieben"
+echo "> Start Filesystem: Vorbereitung"
+
+echo "$(tput setaf 5)"
+fusermount -u mount
+rm -rf container.bin
+rm -rf log.txt
+rm -rf mount
+make clean
+make
+mkdir mount
+touch container.bin
+
+echo "$(tput setaf 4)"
+echo "> Start Filesystem: Mit Datei beschreiben"
+
+echo "$(tput setaf 5)"
+./mkfs.myfs container.bin $parameter
+./mount.myfs container.bin log.txt mount
+
+echo "$(tput setaf 4)"
+echo "> Navigiere ins Filesystem und gebe den Inhalt aus"
+
+echo "$(tput setaf 5)"
+cd mount
+ls
+
+echo "$(tput setaf 4)"
+echo "> Inhalt der Datei"
+
+echo "$(tput setaf 5)"
+cat $parameter
+
+echo "$(tput setaf 5)"
+echo "> In die Datei wird nun 'Hello World' geschrieben"
+echo "Hello World" > $parameter
+
+echo "$(tput setaf 4)"
+cat $paramter
+
+echo "$(tput setaf 5)"
+echo "> In die Datei wird nun 'Hello World 2' angehaengt"
+echo "Hello World 2" >> $parameter
+
+echo "$(tput setaf 4)"
+cat $paramter
+
+echo "$(tput setaf 5)"
+echo "> Die Datei wird nun geloescht"
+rm -rf $parameter
+
+echo "$(tput setaf 4)"
+ls
+
+echo "$(tput setaf 2)"
+echo "---------------------------------"
+echo "Test Script endet"
+echo "---------------------------------"
+\end{lstlisting}
+
+\newpage
+
+\section{Mögliche Optimierungen}

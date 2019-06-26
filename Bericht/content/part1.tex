@@ -1,0 +1,125 @@
+\part{Read Only Filesystem }
+\chapter{Dokumentation}
+\section{Aufbau}
+\subsection{container.bin}
+Der Grundbestandteil eines Dateisystemes ist die Festplatte, da MyFS nicht auf Kernel Ebene sondern auf Fuse Ebene arbeitet, wird hierbei auf eine Container Datei zurückgegriffen, welches die Festplatte simuliert. 
+
+Diese Container Datei hat, laut Vorgabe, für 30,1 MB Platz und wird in Blöcke der Größe 512 Byte aufgeteilt. Somit hat die Container Datei Platz für 64 Dateien und eine Gesamtgröße von 65.536 Blöcken, also 32 MB. 
+
+Ein Block besteht aus Superblock, DMAP, FAT und Root. Diesen Block wird wie folgt aufgeteilt:
+
+\begin{itemize}
+	\item[\textbf{Superblock}] Wird durch den Blockindex 0 andressiert. Wird hier nicht behandelt.
+	\item[\textbf{DMAP}] Wird durch den Blockindex 1 - 128 adressiert und beinhaltet die Daten. Dabei ist zu beachten, das jeweils nur ein Block vergeben wird. Dieser Block ist entweder beschrieben oder mit \textit{e} als Leer (Empty) gekennzeichnet.
+	\item[\textbf{FAT}] Wird durch den Blockindex 129 - 384 adressiert und beinhaltet eine Art Inhaltsverzeichnis, an welcher Stelle die Blöcke stehen. 
+	\item[\textbf{Root}] Wird druch den Blockindex 185 - 448 adressiert und beinhaltet die einzelnen Einträge. Hierbei sind keine Ordnerstrukturen erlaubt. Ebenso werden hier Attribute wie Name, Größe, Benutzer / Benutzergruppe, Zugriffszeiten etc. gespeichert. In dem Root Verzeichnis sind nur Platz für 64 Dateien.
+	\item[\textbf{Daten}] Wird durch den Blockindex 449 - 65.535 adressiert und beinhaltet die Dateien.
+\end{itemize} 
+
+\subsection{log.txt}
+Jedes anständige Programm hat eine Log Datei, in die Änderungen oder auch Zugriffe gespeichert werden. So auch MyFS. In der Log Datei werden Fehler, Errors oder auch Informationen zu den Dateien gespeichert bzw. geloggt.
+
+\subsection{mount}
+Da MyFS nicht auf Kernel Ebene sondern auf Fuse Ebene arbeitet, haben wir keine Platte auf der die Informationen gespeichert werden. Daher bedient sich MyFS einem mount Ordner der dies Simuliert. Dafür wird dieser in ein Filesystem gewandelt  bzw. gemountet. 
+\begin{center}
+	\begin{lstlisting}
+	./mount.myfs container.bin log.txt mount
+	\end{lstlisting}
+\end{center}
+Mit hilfe des folgenden Befehls kann genau dies Rückgängig gemacht werden.
+\begin{center}
+	\begin{lstlisting}
+	fusermount -u mont
+	\end{lstlisting}
+\end{center}
+\subsection{mkfs.myfs}
+Um die Grundstruktur aus Kapitel 1.3.1 umsetzten zu können waren erweitere Methoden notwendig. Hierbei handelt es sich weitestgehend um Initialisierungen und Zuweisungen. 
+\begin{description}[align=right,labelwidth=5cm]
+	\item[\textbf{initializeObjects()}] Initialisert den Blockdevice und den Superblock.
+	\item[\textbf{initDMapAndFat()}] Initialisert die DMAP und die FAT mit leeren Einträgen.
+	\item[\textbf{writeSuperBlockToContainer()}] Beschreibt den Container mit den Einträgen der DMAP.
+	\item[\textbf{writeFatToContainer()}] Beschreibt den Container mit den Einträgen der FAT.
+	\item[\textbf{writeFilesToContainer()}] Beschreibt den Container mit den Daten.
+	\item[\textbf{print()}] Gibt auf den Console diverse Kontroll Informationen aus.
+	\item[\textbf{inputChecks()}] Kontrolliert eine Ordnungsgemäße Parameterübergabe.
+\end{description} 
+
+\subsection{myfs}
+Um den oben genannten Bereich Codieren zu können, bedient sich MyFS diverser Methoden. Fuse bietet selbstverständlich mehr Methoden zur Erstellung eines Filesystems an. Da es sich bei MyFS um ein Read Only Filesystem handelt, sind folgende 3 Methoden zur Implementierung eines solchen Read Only Filesystem vollkommen ausreichend. 
+
+In dem Teil 2 des Filesystem wird lediglich an diesem Methoden etwas geändert. Denn es kommen unter anderem fuseWrite() hinzu.
+
+\begin{description}[align=right,labelwidth=1.5cm]
+	\item[\textbf{fuseGetAttr()}] Setzt die oben genannten Attribute der Datei, falls die Datei existiert.
+	\item[\textbf{fuseOpen()}] Öffnet eine Datei und überprüft sie auf Fehler. Hat eine Datei diese Hürde überstanden, bekommt sie ihre Position in der Liste der anderen Dateien.
+	\item[\textbf{fuseRead()}] Ließt eine Datei und schreibt die Bytes in den Buffer.
+
+\end{description} 
+
+\newpage
+
+\section{Testfälle}
+Damit die Funktionalität von MyFS garantiert werden kann werden sich verschiedenen Tests bedient. Darunter fallen die Tests von der Grundstruktur sowie der Ausführung. 
+
+Unter Grundstruktur versteht man die DMAP, FAT und Root, d. h. ob die Container Datei korrekt abspeichert und ggf. die Daten zum Lesen bereit stellt. Um einen Optimalen Code zu erzeugen bedient man sich diesen Test währrend der Entwicklung um schon kleinere Fehler zu vermeiden.
+
+Im folgenden wird ein Bash - Testscript aufgeführt das die Grundfunktionalität überprüft. Um dies zu starten muss in die Kommandozeile \textit{bash readDifferentFormats.sh datei} eingegeben werden. Das Bash Script kümmert sich um die Restliche Ausführung des Filesystem. Um mehrere Dateien zu überprüfen werden anderen Testmechanismen angewendet. 
+\begin{lstlisting}
+	data=$1
+	echo "---------------------------------"
+	echo "Test Script startet"
+	echo "---------------------------------"
+	echo "> Es wird folgende Datei getestet: $data"
+	echo "> Das Filesystem wird vorbereitet und mit der Datei $data beschrieben"
+	echo "> Start Filesystem Vorbereitung"
+	fusermount -u mount
+	rm -rf container.bin
+	rm -rf log.txt
+	rm -rf mount
+	make clean
+	make
+	mkdir mount
+	touch container.bin
+	./mkfs.myfs container.bin $data
+	./mount.myfs container.bin log.txt mount
+	echo "> Navigiere ins Filesystem und gebe den Inhalt aus"
+	cd mount 
+	ls
+	echo "---------------------------------"
+	echo "Test Script end"
+	echo "---------------------------------"
+\end{lstlisting}
+
+\newpage
+
+\section{Mögliche Optimierungen}
+Um ein möglichst schnelles Filesystem zu garantieren bedient man sich an diversen Optimierungen, darunter fällt die Überprüfung der richtigen Parameter. Sind diese falsch bzw. nicht korrekt angegeben wird bereits ein Fehler zurückgeben werden. 
+
+Im folgenden ist ein Code Fragment was unter anderem genau dies ausführt. Es wird geschaut ob die Maximale Anzahl an Dateien eingehalten wird. Ebenso muss das Container File gegeben sein und es muss mindestens eine Datei zum Speichern übergeben werden. 
+
+Diese kleineren Zeitersparnisse machen einen deutlicher besseren Performance. Zum Beispiel kann auf MyFS gestreamt werden.
+
+\begin{lstlisting}
+int inputChecks(int argc, char *argv[]) {
+	if (argc > 2 + NUM_DIR_ENTRIES) {
+		cout << "Error(to much files): <<
+		You provided more then 64 files. " << endl;
+		return -1;
+	}
+	if (argc < 2) {
+		cout << "Error(no container file): <<
+		No container file has been provided. " << 
+		"Please (create and) provide the file 'container.bin'." 
+		<< endl;
+		return -1;
+	}
+	if (argc < 3) {
+		cout << "Error(no file): << 
+		No file has been provided. " << 
+		"Please (create and) provide at least << 
+		one file for the file system." << endl;
+		return -1;
+	}
+	...
+}
+\end{lstlisting}
